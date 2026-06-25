@@ -1,0 +1,27 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
+import { PrismaModule } from '@quickbite/prisma';
+import { SearchController } from './search.controller';
+import { SearchService } from './search.service';
+import { JwtStrategy } from './jwt.strategy';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    PassportModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) => ({
+        secret: c.get<string>('JWT_SECRET') || 'super-secret',
+        signOptions: { expiresIn: '60m' },
+      }),
+    }),
+  ],
+  controllers: [SearchController],
+  providers: [SearchService, JwtStrategy],
+})
+export class AppModule {}

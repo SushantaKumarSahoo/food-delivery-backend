@@ -1,0 +1,41 @@
+{
+  "projectId": "your-supabase-project-id",
+  "api": {
+    "port": 54321
+  },
+  "db": {
+    "port": 54322,
+    "shadow_port": 54320,
+    "major_version": 17
+  },
+  "studio": {
+    "port": 54323
+  },
+  "inbucket": {
+    "port": 54324
+  },
+  "storage": {
+    "fileSizeLimit": "50MiB"
+  },
+  "auth": {
+    "site_url": "http://localhost:3000",
+    "additional_redirect_urls": ["https://localhost:3000"],
+    "jwt_expiry": 3600,
+    "enable_signup": true,
+    "email": {
+      "enable_signup": true,
+      "double_confirm_changes": true,
+      "enable_confirmations": false
+    },
+    "sms": {
+      "enable_signup": false
+    },
+    "external": {
+      "google": {
+        "enabled": false,
+        "client_id": "",
+        "secret": ""
+      }
+    }
+  }
+}

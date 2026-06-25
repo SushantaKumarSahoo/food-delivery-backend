@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-service
+  labels:
+    app: admin-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: admin-service
+  template:
+    metadata:
+      labels:
+        app: admin-service
+    spec:
+      containers:
+        - name: admin-service
+          image: quickbite/admin-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3017
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_ADMIN_SERVICE
+              value: "3017"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3017
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3017
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-service
+spec:
+  selector:
+    app: admin-service
+  ports:
+    - protocol: TCP
+      port: 3017
+      targetPort: 3017
+  type: ClusterIP

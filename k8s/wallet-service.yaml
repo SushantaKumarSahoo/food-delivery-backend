@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallet-service
+  labels:
+    app: wallet-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wallet-service
+  template:
+    metadata:
+      labels:
+        app: wallet-service
+    spec:
+      containers:
+        - name: wallet-service
+          image: quickbite/wallet-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3013
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_WALLET_SERVICE
+              value: "3013"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3013
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3013
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wallet-service
+spec:
+  selector:
+    app: wallet-service
+  ports:
+    - protocol: TCP
+      port: 3013
+      targetPort: 3013
+  type: ClusterIP

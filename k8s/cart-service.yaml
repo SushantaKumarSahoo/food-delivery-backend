@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-service
+  labels:
+    app: cart-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cart-service
+  template:
+    metadata:
+      labels:
+        app: cart-service
+    spec:
+      containers:
+        - name: cart-service
+          image: quickbite/cart-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3005
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_CART_SERVICE
+              value: "3005"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-service
+spec:
+  selector:
+    app: cart-service
+  ports:
+    - protocol: TCP
+      port: 3005
+      targetPort: 3005
+  type: ClusterIP

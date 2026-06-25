@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subscription-service
+  labels:
+    app: subscription-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: subscription-service
+  template:
+    metadata:
+      labels:
+        app: subscription-service
+    spec:
+      containers:
+        - name: subscription-service
+          image: quickbite/subscription-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3014
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_SUBSCRIPTION_SERVICE
+              value: "3014"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3014
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3014
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subscription-service
+spec:
+  selector:
+    app: subscription-service
+  ports:
+    - protocol: TCP
+      port: 3014
+      targetPort: 3014
+  type: ClusterIP

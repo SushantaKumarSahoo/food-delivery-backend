@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: quickbite/notification-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3010
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_NOTIFICATION_SERVICE
+              value: "3010"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3010
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3010
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - protocol: TCP
+      port: 3010
+      targetPort: 3010
+  type: ClusterIP

@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loyalty-service
+  labels:
+    app: loyalty-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loyalty-service
+  template:
+    metadata:
+      labels:
+        app: loyalty-service
+    spec:
+      containers:
+        - name: loyalty-service
+          image: quickbite/loyalty-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3012
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_LOYALTY_SERVICE
+              value: "3012"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3012
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3012
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loyalty-service
+spec:
+  selector:
+    app: loyalty-service
+  ports:
+    - protocol: TCP
+      port: 3012
+      targetPort: 3012
+  type: ClusterIP

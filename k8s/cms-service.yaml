@@ -1,0 +1,62 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-service
+  labels:
+    app: cms-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cms-service
+  template:
+    metadata:
+      labels:
+        app: cms-service
+    spec:
+      containers:
+        - name: cms-service
+          image: quickbite/cms-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3018
+          envFrom:
+            - secretRef:
+                name: quickbite-secrets
+            - configMapRef:
+                name: quickbite-config
+          env:
+            - name: PORT_CMS_SERVICE
+              value: "3018"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3018
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3018
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms-service
+spec:
+  selector:
+    app: cms-service
+  ports:
+    - protocol: TCP
+      port: 3018
+      targetPort: 3018
+  type: ClusterIP

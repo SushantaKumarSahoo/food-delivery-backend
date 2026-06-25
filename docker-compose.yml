@@ -1,0 +1,384 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # DATABASES & INFRASTRUCTURE
+  # ==========================================
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: quickbite-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: quickbite
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: quickbite-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+
+  # ==========================================
+  # KAFKA EVENT BROKER (KRaft Mode)
+  # ==========================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: quickbite-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: quickbite-kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
+
+  # ==========================================
+  # OPENSEARCH (Search Engine)
+  # ==========================================
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: quickbite-opensearch
+    environment:
+      - cluster.name=quickbite-cluster
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearchdata:/usr/share/opensearch/data
+
+  # ==========================================
+  # MICROSERVICES
+  # ==========================================
+  api-gateway:
+    build: .
+    container_name: quickbite-api-gateway
+    command: node dist/apps/api-gateway/main
+    ports:
+      - "3000:3000"
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    environment:
+      PORT: 3000
+
+  user-service:
+    build: .
+    container_name: quickbite-user-service
+    command: node dist/apps/user-service/main
+    ports:
+      - "3001:3001"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_USER_SERVICE: 3001
+
+  auth-service:
+    build: .
+    container_name: quickbite-auth-service
+    command: node dist/apps/auth-service/main
+    ports:
+      - "3002:3002"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_AUTH_SERVICE: 3002
+
+  merchant-service:
+    build: .
+    container_name: quickbite-merchant-service
+    command: node dist/apps/merchant-service/main
+    ports:
+      - "3003:3003"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_MERCHANT_SERVICE: 3003
+
+  catalog-service:
+    build: .
+    container_name: quickbite-catalog-service
+    command: node dist/apps/catalog-service/main
+    ports:
+      - "3004:3004"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_CATALOG_SERVICE: 3004
+
+  cart-service:
+    build: .
+    container_name: quickbite-cart-service
+    command: node dist/apps/cart-service/main
+    ports:
+      - "3005:3005"
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      PORT_CART_SERVICE: 3005
+
+  order-service:
+    build: .
+    container_name: quickbite-order-service
+    command: node dist/apps/order-service/main
+    ports:
+      - "3006:3006"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_ORDER_SERVICE: 3006
+
+  payment-service:
+    build: .
+    container_name: quickbite-payment-service
+    command: node dist/apps/payment-service/main
+    ports:
+      - "3007:3007"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_PAYMENT_SERVICE: 3007
+
+  delivery-service:
+    build: .
+    container_name: quickbite-delivery-service
+    command: node dist/apps/delivery-service/main
+    ports:
+      - "3008:3008"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_DELIVERY_SERVICE: 3008
+
+  tracking-service:
+    build: .
+    container_name: quickbite-tracking-service
+    command: node dist/apps/tracking-service/main
+    ports:
+      - "3009:3009"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_TRACKING_SERVICE: 3009
+
+  notification-service:
+    build: .
+    container_name: quickbite-notification-service
+    command: node dist/apps/notification-service/main
+    ports:
+      - "3010:3010"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_NOTIFICATION_SERVICE: 3010
+
+  search-service:
+    build: .
+    container_name: quickbite-search-service
+    command: node dist/apps/search-service/main
+    ports:
+      - "3011:3011"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_SEARCH_SERVICE: 3011
+
+  loyalty-service:
+    build: .
+    container_name: quickbite-loyalty-service
+    command: node dist/apps/loyalty-service/main
+    ports:
+      - "3012:3012"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_LOYALTY_SERVICE: 3012
+
+  wallet-service:
+    build: .
+    container_name: quickbite-wallet-service
+    command: node dist/apps/wallet-service/main
+    ports:
+      - "3013:3013"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_WALLET_SERVICE: 3013
+
+  subscription-service:
+    build: .
+    container_name: quickbite-subscription-service
+    command: node dist/apps/subscription-service/main
+    ports:
+      - "3014:3014"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_SUBSCRIPTION_SERVICE: 3014
+
+  inventory-service:
+    build: .
+    container_name: quickbite-inventory-service
+    command: node dist/apps/inventory-service/main
+    ports:
+      - "3015:3015"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_INVENTORY_SERVICE: 3015
+
+  analytics-service:
+    build: .
+    container_name: quickbite-analytics-service
+    command: node dist/apps/analytics-service/main
+    ports:
+      - "3016:3016"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_ANALYTICS_SERVICE: 3016
+
+  admin-service:
+    build: .
+    container_name: quickbite-admin-service
+    command: node dist/apps/admin-service/main
+    ports:
+      - "3017:3017"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_ADMIN_SERVICE: 3017
+
+  cms-service:
+    build: .
+    container_name: quickbite-cms-service
+    command: node dist/apps/cms-service/main
+    ports:
+      - "3018:3018"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_CMS_SERVICE: 3018
+
+  review-service:
+    build: .
+    container_name: quickbite-review-service
+    command: node dist/apps/review-service/main
+    ports:
+      - "3019:3019"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_REVIEW_SERVICE: 3019
+
+  group-order-service:
+    build: .
+    container_name: quickbite-group-order-service
+    command: node dist/apps/group-order-service/main
+    ports:
+      - "3020:3020"
+    env_file: .env
+    depends_on:
+      - postgres
+    environment:
+      PORT_GROUP_ORDER_SERVICE: 3020
+
+  support-service:
+    build: .
+    container_name: quickbite-support-service
+    command: node dist/apps/support-service/main
+    ports:
+      - "3021:3021"
+    env_file: .env
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      PORT_SUPPORT_SERVICE: 3021
+
+volumes:
+  pgdata:
+  redisdata:
+  opensearchdata:
+
