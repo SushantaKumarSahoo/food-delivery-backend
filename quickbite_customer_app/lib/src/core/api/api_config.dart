@@ -58,4 +58,7 @@ class ApiConfig {
 
   // Reviews
   static const String reviews = '/reviews';
+
+  // CMS
+  static const String cms = '/cms';
 }

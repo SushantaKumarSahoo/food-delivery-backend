@@ -1134,7 +1134,7 @@ class ProfileFeed extends ConsumerWidget {
       applicationIcon: const Icon(LucideIcons.utensils, size: 40, color: Colors.deepOrange),
       children: [
         const SizedBox(height: 12),
-        const Text('QuickBite is your multi-tenant, ultra-fast food & grocery delivery platform.'),
+        const Text('QuickBite is your ultra-fast food delivery platform.'),
       ],
     );
   }

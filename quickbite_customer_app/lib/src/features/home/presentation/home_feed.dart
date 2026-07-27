@@ -4,9 +4,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../restaurant/application/restaurant_provider.dart';
-import '../application/catalog_provider.dart';
 import '../../profile/application/user_provider.dart';
 import '../../profile/data/user_repository.dart';
+import '../application/banner_provider.dart';
+import '../application/category_provider.dart';
 
 class HomeFeed extends ConsumerStatefulWidget {
   const HomeFeed({super.key});
@@ -16,21 +17,55 @@ class HomeFeed extends ConsumerStatefulWidget {
 }
 
 class _HomeFeedState extends ConsumerState<HomeFeed> {
-  int _selectedCategoryIndex = 0;
-
-  final List<Color> _categoryColors = [
-    const Color(0xFFFFF0E6),
-    const Color(0xFFE6F5FF),
-    const Color(0xFFFFE6E6),
-    const Color(0xFFF5E6FF),
-  ];
+  int _calculateStreak(List<dynamic> orders) {
+    if (orders.isEmpty) return 0;
+    
+    final sortedOrders = List.from(orders)
+      ..sort((a, b) {
+        final dateA = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA);
+      });
+      
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    Set<DateTime> orderDates = {};
+    for (var o in sortedOrders) {
+      final dateStr = o['createdAt']?.toString() ?? '';
+      if (dateStr.isNotEmpty) {
+        final date = DateTime.tryParse(dateStr);
+        if (date != null) {
+          orderDates.add(DateTime(date.year, date.month, date.day));
+        }
+      }
+    }
+    
+    int streak = 0;
+    DateTime checkDate = today;
+    
+    if (!orderDates.contains(today)) {
+      if (!orderDates.contains(today.subtract(const Duration(days: 1)))) {
+        return 0;
+      }
+      checkDate = today.subtract(const Duration(days: 1));
+    }
+    
+    while (orderDates.contains(checkDate)) {
+      streak++;
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+    
+    return streak;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final restaurantsAsyncValue = ref.watch(restaurantsProvider);
-    final verticalsAsyncValue = ref.watch(verticalsProvider);
     final walletAsyncValue = ref.watch(walletProvider);
+    final bannersAsyncValue = ref.watch(bannersProvider);
+    final categoriesAsyncValue = ref.watch(categoryProvider);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -126,9 +161,10 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
                                         o['status'] != 'cancelled',
                                   )
                                   .length;
+                              final streakCount = _calculateStreak(orders);
                               final displayVal = activeCount > 0
                                   ? '$activeCount Active'
-                                  : '3 Streak';
+                                  : '$streakCount Streak';
                               return Text(
                                 displayVal,
                                 style: const TextStyle(
@@ -139,14 +175,14 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
                               );
                             },
                             loading: () => const Text(
-                              '3',
+                              '0',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.orange,
                               ),
                             ),
                             error: (_, __) => const Text(
-                              '3',
+                              '0',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.orange,
@@ -224,200 +260,327 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
             ],
           ),
 
-          verticalsAsyncValue.when(
-            data: (verticals) {
-              if (verticals.isEmpty) {
-                return const SliverToBoxAdapter(child: SizedBox());
-              }
+          // Search Bar
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+              child: GestureDetector(
+                onTap: () => context.push('/search'),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.grey.shade100),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.search,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Search restaurants...',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn().slideY(begin: 0.1, end: 0),
+            ),
+          ),
 
-              final activeIndex = _selectedCategoryIndex < verticals.length
-                  ? _selectedCategoryIndex
-                  : 0;
-              final activeVertical = verticals[activeIndex];
+          // Banners Section
+          bannersAsyncValue.when(
+            data: (apiBanners) {
+              // Fallback to dummy data if DB is empty
+              final banners = apiBanners.isEmpty ? [
+                {
+                  'title': 'Get 50% Off',
+                  'subtitle': 'On your first order',
+                  'imageUrl': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop',
+                },
+                {
+                  'title': 'Free Delivery',
+                  'subtitle': 'For orders over \$20',
+                  'imageUrl': 'https://images.unsplash.com/photo-1493770348161-369560ae357d?q=80&w=1000&auto=format&fit=crop',
+                }
+              ] : apiBanners;
 
-              return SliverMainAxisGroup(
-                slivers: [
-                  // Search Bar (Dynamic hint text based on category)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                      child: GestureDetector(
-                        onTap: () => context.push('/search'),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 20,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                            border: Border.all(color: Colors.grey.shade100),
+              return SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 180,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    itemCount: banners.length,
+                    itemBuilder: (context, index) {
+                      final banner = banners[index];
+                      return Container(
+                        width: MediaQuery.of(context).size.width * 0.8,
+                        margin: const EdgeInsets.only(right: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          image: DecorationImage(
+                            image: NetworkImage(banner['imageUrl'] ?? ''),
+                            fit: BoxFit.cover,
                           ),
-                          child: Row(
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            )
+                          ],
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.6),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(20),
+                          alignment: Alignment.bottomLeft,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                LucideIcons.search,
-                                color: Colors.grey.shade400,
-                              ),
-                              const SizedBox(width: 12),
                               Text(
-                                'Search in "${activeVertical.name}"',
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 16,
+                                banner['title'] ?? '',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              if (banner['subtitle'] != null)
+                                Text(
+                                  banner['subtitle'],
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
-                      ).animate().fadeIn().slideY(begin: 0.1, end: 0),
+                      ).animate().fadeIn(delay: Duration(milliseconds: index * 100)).slideX();
+                    },
+                  ),
+                ),
+              );
+            },
+            loading: () => const SliverToBoxAdapter(child: SizedBox(height: 180, child: Center(child: CircularProgressIndicator()))),
+            error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          ),
+
+          // Categories Section
+          categoriesAsyncValue.when(
+            data: (apiCategories) {
+              // Fallback to dummy data if DB is empty
+              final categories = apiCategories.isEmpty ? [
+                {'name': 'Burgers', 'imageUrl': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=500&auto=format&fit=crop'},
+                {'name': 'Pizza', 'imageUrl': 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=500&auto=format&fit=crop'},
+                {'name': 'Sushi', 'imageUrl': 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=500&auto=format&fit=crop'},
+                {'name': 'Healthy', 'imageUrl': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=500&auto=format&fit=crop'},
+                {'name': 'Dessert', 'imageUrl': 'https://images.unsplash.com/photo-1551024506-0bccd828d307?q=80&w=500&auto=format&fit=crop'},
+              ] : apiCategories;
+              
+              return SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 120,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    itemCount: categories.length,
+                    itemBuilder: (context, index) {
+                      final category = categories[index];
+                      return Container(
+                        margin: const EdgeInsets.only(right: 20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 70,
+                              height: 70,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: theme.colorScheme.surface,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                                image: category['imageUrl'] != null
+                                    ? DecorationImage(
+                                        image: NetworkImage(category['imageUrl']),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: category['imageUrl'] == null
+                                  ? Icon(LucideIcons.image, color: Colors.grey.shade400)
+                                  : null,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              category['name'] ?? '',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(delay: Duration(milliseconds: index * 100)).scale();
+                    },
+                  ),
+                ),
+              );
+            },
+            loading: () => const SliverToBoxAdapter(child: SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))),
+            error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          ),
+
+          // Trending Header
+          SliverToBoxAdapter(
+            key: const ValueKey('header_restaurants'),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Top Restaurants',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: 20,
                     ),
                   ),
+                  Text(
+                    'See All',
+                    style: TextStyle(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ).animate().fadeIn(),
+            ),
+          ),
 
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: List.generate(verticals.length, (index) {
-                          return _buildMacroCategory(
-                            index,
-                            verticals[index],
-                            theme,
-                          );
-                        }),
+          // Filtered Stores List
+          restaurantsAsyncValue.when(
+            data: (allRestaurants) {
+              final filteredStores = allRestaurants.toList();
+
+              // If filtered stores is empty or allRestaurants is empty
+              if (filteredStores.isEmpty) {
+                return SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 36,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.grey.shade100,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-
-                  // Trending Header
-                  SliverToBoxAdapter(
-                    key: ValueKey('header_$_selectedCategoryIndex'),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'Top in ${activeVertical.name}',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontSize: 20,
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary
+                                  .withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              LucideIcons.utensils,
+                              size: 36,
+                              color: theme.colorScheme.primary,
                             ),
                           ),
+                          const SizedBox(height: 16),
                           Text(
-                            'See All',
-                            style: TextStyle(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
+                            'No Restaurants Nearby',
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'We\'re expanding fast! We haven\'t onboarded partners yet. Check back soon.',
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Colors.grey.shade600,
+                                  height: 1.4,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              ref.invalidate(restaurantsProvider);
+                            },
+                            icon: const Icon(
+                              LucideIcons.refreshCw,
+                              size: 16,
+                            ),
+                            label: const Text('Refresh'),
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  12,
+                                ),
+                              ),
                             ),
                           ),
                         ],
-                      ).animate().fadeIn(),
+                      ),
+                    ).animate().fadeIn().scale(
+                      begin: const Offset(0.95, 0.95),
                     ),
                   ),
+                );
+              }
 
-                  // Filtered Stores List
-                  restaurantsAsyncValue.when(
-                    data: (allRestaurants) {
-                      final filteredStores = allRestaurants
-                          .where((store) => store.type == activeVertical.name)
-                          .toList();
-
-                      // If filtered stores is empty or allRestaurants is empty
-                      if (filteredStores.isEmpty) {
-                        return SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 36,
-                            ),
-                            child:
-                                Container(
-                                  padding: const EdgeInsets.all(24),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(
-                                      color: Colors.grey.shade100,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.02),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.primary
-                                              .withOpacity(0.1),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          LucideIcons.utensils,
-                                          size: 36,
-                                          color: theme.colorScheme.primary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No ${activeVertical.name} Stores Nearby',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 18,
-                                            ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'We\'re expanding fast! We haven\'t onboarded partners in this category yet. Try exploring another section.',
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                              color: Colors.grey.shade600,
-                                              height: 1.4,
-                                            ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 20),
-                                      OutlinedButton.icon(
-                                        onPressed: () {
-                                          ref.invalidate(restaurantsProvider);
-                                        },
-                                        icon: const Icon(
-                                          LucideIcons.refreshCw,
-                                          size: 16,
-                                        ),
-                                        label: const Text('Refresh'),
-                                        style: OutlinedButton.styleFrom(
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ).animate().fadeIn().scale(
-                                  begin: const Offset(0.95, 0.95),
-                                ),
-                          ),
-                        );
-                      }
-
-                      return SliverList(
-                        key: ValueKey('list_$_selectedCategoryIndex'),
+              return SliverList(
+                key: const ValueKey('list_restaurants'),
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final store = filteredStores[index];
 
@@ -651,22 +814,6 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
                       ),
                     ),
                   ),
-                ],
-              );
-            },
-            loading: () => const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(40.0),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-            error: (error, stack) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(40.0),
-                child: Center(child: Text('Error loading verticals: $error')),
-              ),
-            ),
-          ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
@@ -674,56 +821,6 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
     );
   }
 
-  Widget _buildMacroCategory(int index, dynamic vertical, ThemeData theme) {
-    final isSelected = _selectedCategoryIndex == index;
-    final color = isSelected ? theme.colorScheme.primary : const Color(0xFFF1F5F9);
-    final textColor = isSelected ? Colors.white : theme.colorScheme.onSurface;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategoryIndex = index;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: theme.colorScheme.primary.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              vertical.icon ?? '🍔',
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              vertical.name,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(delay: (index * 100).ms);
-  }
 
   void _showActiveOrdersModal(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
@@ -770,27 +867,27 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             LucideIcons.flame,
                             color: Colors.orange,
                             size: 32,
                           ),
-                          SizedBox(width: 16),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '3 Day Order Streak! 🔥',
-                                  style: TextStyle(
+                                  '${_calculateStreak(orders)} Day Order Streak! 🔥',
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
                                 ),
-                                SizedBox(height: 4),
-                                Text(
+                                const SizedBox(height: 4),
+                                const Text(
                                   'Order today to keep your streak alive & earn 2x QuickCoins!',
                                 ),
                               ],
@@ -983,7 +1080,7 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
               leading: Icon(LucideIcons.bell, color: Colors.deepOrange),
               title: Text('Welcome to QuickBite! 🎉'),
               subtitle: Text(
-                'Enjoy free delivery on your first 3 food & grocery orders.',
+                'Enjoy free delivery on your first 3 food orders.',
               ),
             ),
             const ListTile(
