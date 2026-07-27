@@ -152,12 +152,39 @@ export class NotificationService {
     });
   }
 
+  async handleDeliveryBroadcasted(payload: any) {
+    const { orderId, partnerIds, storeId, estimatedPrepTime, isExpanded, hasSurgePay } = payload;
+    
+    const title = hasSurgePay ? 'Surge Pay Order! 💸' : 'New Delivery Request! 🚨';
+    const bodyText = hasSurgePay 
+      ? 'Extra incentive added for this order. Tap to accept now!' 
+      : 'New order from a nearby restaurant. Tap to accept!';
+
+    // Notify all nearest partners
+    for (const partnerId of partnerIds) {
+      const partner = await this.prisma.deliveryPartner.findFirst({
+        where: { id: partnerId }
+      });
+      if (partner) {
+        await this.sendNotification({
+          userId: partner.userId,
+          type: 'in_app',
+          title: title,
+          body: bodyText,
+          data: { orderId, storeId, estimatedPrepTime, isExpanded, hasSurgePay },
+          channel: 'delivery_broadcasts',
+        });
+      }
+    }
+  }
+
   async handleDeliveryAssigned(payload: any) {
-    const { orderId, partnerName, estimatedDurationMin } = payload;
-    // We'd need to look up userId from orderId
+    const { orderId, partnerName, partnerId, estimatedDurationMin } = payload;
+    
     const order = await this.prisma.order.findFirst({ where: { id: orderId } });
     if (!order) return;
 
+    // 1. Notify Customer
     await this.sendNotification({
       userId: order.userId,
       type: 'in_app',
@@ -166,6 +193,33 @@ export class NotificationService {
       data: { orderId },
       channel: 'delivery_updates',
     });
+
+    // 2. Notify Restaurant
+    const merchant = await this.prisma.merchant.findFirst({ where: { id: order.merchantId } });
+    if (merchant) {
+      await this.sendNotification({
+        userId: merchant.ownerUserId,
+        type: 'in_app',
+        title: 'Driver Secured! ✅',
+        body: `Driver ${partnerName} has been assigned for Order #${order.orderNumber}. You can start cooking now!`,
+        data: { orderId },
+        channel: 'restaurant_updates',
+      });
+    }
+
+    // 3. Notify Driver
+    const partner = await this.prisma.deliveryPartner.findFirst({ where: { id: partnerId } });
+    if (partner) {
+      const prepTime = order.estimatedPrepTime || 15;
+      await this.sendNotification({
+        userId: partner.userId,
+        type: 'in_app',
+        title: 'Order Confirmed! 🚀',
+        body: `Please head to the restaurant. The food will be ready in approximately ${prepTime} minutes.`,
+        data: { orderId },
+        channel: 'delivery_updates',
+      });
+    }
   }
 
   async handleDeliveryCompleted(payload: any) {

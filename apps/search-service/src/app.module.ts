@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '@quickbite/prisma';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
+import { AiSearchService } from './ai-search.service';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
@@ -22,6 +23,6 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [SearchController],
-  providers: [SearchService, JwtStrategy],
+  providers: [SearchService, AiSearchService, JwtStrategy],
 })
 export class AppModule {}

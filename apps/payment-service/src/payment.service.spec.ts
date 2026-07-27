@@ -3,19 +3,30 @@ import { PaymentService } from './payment.service';
 import { PrismaService } from '@quickbite/prisma';
 import { KafkaService } from '@quickbite/common';
 import { NotFoundException } from '@nestjs/common';
+import { Cashfree, CFEnvironment } from 'cashfree-pg';
 
-// Mock Stripe as a class (default export, ESM-style)
-const mockStripeInstance = {
-  paymentIntents: {
-    create: jest.fn().mockResolvedValue({ id: 'pi_mock', client_secret: 'cs_mock' }),
-  },
-  refunds: {
-    create: jest.fn().mockResolvedValue({ id: 'ref_mock' }),
-  },
-};
-jest.mock('stripe', () => {
-  const StripeMock = jest.fn().mockImplementation(() => mockStripeInstance);
-  return { __esModule: true, default: StripeMock };
+// Mock Cashfree
+jest.mock('cashfree-pg', () => {
+  return {
+    CFEnvironment: {
+      SANDBOX: 1,
+      PRODUCTION: 2
+    },
+    Cashfree: jest.fn().mockImplementation(() => {
+      return {
+        PGCreateOrder: jest.fn().mockResolvedValue({
+          data: { payment_session_id: 'cf_session_mock' }
+        }),
+        PGVerifyWebhookSignature: jest.fn(),
+        PGFetchOrder: jest.fn().mockResolvedValue({
+          data: { order_status: 'PAID' }
+        }),
+        PGOrderCreateRefund: jest.fn().mockResolvedValue({
+          data: { refund_id: 'ref_mock' }
+        })
+      };
+    })
+  };
 });
 
 const mockPrisma = {
@@ -46,22 +57,27 @@ describe('PaymentService', () => {
     await expect(service.initiatePayment('bad', {})).rejects.toThrow(NotFoundException);
   });
 
-  it('initiatePayment returns clientSecret for stripe', async () => {
+  it('initiatePayment returns paymentSessionId for cashfree', async () => {
     mockPrisma.order.findFirst.mockResolvedValue({ id: 'o1', userId: 'u1', tenantId: 't1', totalAmount: 200 });
     mockPrisma.payment.create.mockResolvedValue({ id: 'pay1' });
-    mockStripeInstance.paymentIntents.create.mockResolvedValue({ id: 'pi_mock', client_secret: 'cs_mock' });
-    const result = await service.initiatePayment('o1', { methodType: 'card' });
-    expect(result).toHaveProperty('clientSecret', 'cs_mock');
+    const result = await service.initiatePayment('o1', { methodType: 'upi' });
+    expect(result).toHaveProperty('paymentSessionId', 'cf_session_mock');
+    expect(result).toHaveProperty('cfOrderId');
   });
 
-  it('processWebhook handles payment_intent.succeeded', async () => {
+  it('processWebhook handles SUCCESS', async () => {
     mockPrisma.payment.findFirst.mockResolvedValue({ id: 'pay1', orderId: 'o1', userId: 'u1', amount: 200 });
     mockPrisma.payment.updateMany.mockResolvedValue({});
     mockPrisma.order.updateMany.mockResolvedValue({});
-    const result = await service.processWebhook({
-      type: 'payment_intent.succeeded',
-      data: { object: { id: 'pi_mock' } },
+    
+    const rawBody = JSON.stringify({
+      data: {
+        order: { order_id: 'cf_order_mock' },
+        payment: { payment_status: 'SUCCESS' }
+      }
     });
+
+    const result = await service.processWebhook(rawBody, 'mock_signature', 'mock_timestamp');
     expect(result.status).toBe('success');
     expect(mockKafka.emit).toHaveBeenCalled();
   });

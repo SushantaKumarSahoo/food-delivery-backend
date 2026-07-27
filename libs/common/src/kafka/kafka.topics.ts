@@ -1,6 +1,7 @@
 export const KAFKA_TOPICS = {
   // Order events
   ORDER_CREATED: 'order.created',
+  ORDER_ACCEPTED: 'order.accepted',
   ORDER_CANCELLED: 'order.cancelled',
   ORDER_COMPLETED: 'order.completed',
 
@@ -10,10 +11,12 @@ export const KAFKA_TOPICS = {
   PAYMENT_REFUNDED: 'payment.refunded',
 
   // Delivery events
+  DELIVERY_BROADCASTED: 'delivery.broadcasted',
   DELIVERY_ASSIGNED: 'delivery.assigned',
   DELIVERY_COMPLETED: 'delivery.completed',
   DELIVERY_STATUS_UPDATED: 'delivery.status_updated',
   DELIVERY_LOCATION_UPDATED: 'delivery.location_updated',
+  DELIVERY_TIMEOUT: 'delivery.timeout',
 
   // Catalog events
   CATALOG_PRODUCT_CREATED: 'catalog.product.created',

@@ -76,12 +76,13 @@ export class DeliveryService {
     return assignment;
   }
 
-  async autoAssignPartner(orderId: string) {
+  async broadcastToNearestPartners(orderId: string, estimatedPrepTime: number, isExpanded = false, hasSurgePay = false) {
     const order = await this.prisma.order.findFirst({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order not found');
 
-    // Use PostGIS raw query to find nearest available online partner
-    // We join the stores table to get the store's geography point
+    const limit = isExpanded ? 15 : 5;
+
+    // Use PostGIS raw query to find nearest available online partners
     const nearestPartners: any[] = await this.prisma.$queryRaw`
       SELECT dp.id, 
              ST_Distance(dp.current_location, s.location) as distance_meters
@@ -92,22 +93,47 @@ export class DeliveryService {
         AND dp.current_location IS NOT NULL
         AND s.location IS NOT NULL
       ORDER BY dp.current_location <-> s.location
-      LIMIT 1
+      LIMIT ${limit}
     `;
 
     if (!nearestPartners || nearestPartners.length === 0) {
-      // Fallback: just get any available partner if no location data
-      const fallbackPartner = await this.prisma.deliveryPartner.findFirst({
+      // Fallback: get any available partners
+      const fallbackPartners = await this.prisma.deliveryPartner.findMany({
         where: { status: 'available' },
+        take: limit,
       });
-      if (!fallbackPartner) {
-        return { message: 'No partner available, order queued' };
+      if (!fallbackPartners || fallbackPartners.length === 0) {
+        return { message: 'No partners available right now' };
       }
-      return this.assignPartner(orderId, fallbackPartner.id);
+      nearestPartners.push(...fallbackPartners);
     }
 
-    const bestPartner = nearestPartners[0];
-    return this.assignPartner(orderId, bestPartner.id);
+    const partnerIds = nearestPartners.map(p => p.id);
+
+    // Emit event to notify partners
+    await this.kafkaService.emit(KAFKA_TOPICS.DELIVERY_BROADCASTED, {
+      orderId,
+      partnerIds,
+      storeId: order.storeId,
+      estimatedPrepTime,
+      isExpanded,
+      hasSurgePay,
+    });
+
+    return { message: 'Order broadcasted to nearest partners', partnerIds, isExpanded, hasSurgePay };
+  }
+
+  async acceptBroadcastedOrder(orderId: string, partnerId: string) {
+    // Check if it's already assigned
+    const existing = await this.prisma.deliveryAssignment.findFirst({
+      where: { orderId, status: { notIn: ['failed', 'cancelled', 'rejected'] } },
+    });
+    if (existing) {
+      throw new Error('Order already taken by another partner');
+    }
+
+    // Attempt to assign
+    return this.assignPartner(orderId, partnerId);
   }
 
   async updateDeliveryStatus(assignmentId: string, status: string) {

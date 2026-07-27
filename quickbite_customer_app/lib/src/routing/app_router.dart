@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/splash/presentation/splash_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/otp_screen.dart';
+import '../features/auth/presentation/complete_profile_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/restaurant/presentation/restaurant_detail_screen.dart';
 import '../features/tracking/presentation/tracking_screen.dart';
+import '../features/payment/presentation/payment_screen.dart';
 
 import '../features/home/presentation/search_feed.dart';
 
@@ -53,6 +55,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/complete-profile',
+        builder: (context, state) => const CompleteProfileScreen(),
+      ),
+      GoRoute(
         path: '/home',
         builder: (context, state) => const HomeScreen(),
       ),
@@ -80,6 +86,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomTransitionPage(
             key: state.pageKey,
             child: TrackingScreen(orderId: id),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/payment/:orderId',
+        pageBuilder: (context, state) {
+          final orderId = state.pathParameters['orderId']!;
+          final amount = (state.extra as double?) ?? 0.0;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: PaymentScreen(orderId: orderId, amount: amount),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               return SlideTransition(
                 position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),

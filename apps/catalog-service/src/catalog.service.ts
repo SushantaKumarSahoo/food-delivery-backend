@@ -16,6 +16,35 @@ export class CatalogService {
     return this.prisma.vertical.create({ data });
   }
 
+
+
+  async batchCreateProducts(storeId: string, items: any[]) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const storeVerticals = await this.prisma.storeVertical.findMany({ where: { storeId } });
+    const verticalId = storeVerticals.length > 0 ? storeVerticals[0].verticalId : 'default-vertical';
+
+    const created = await Promise.all(
+      items.map(async (item) => {
+        return this.prisma.product.create({
+          data: {
+            storeId,
+            tenantId: store.tenantId,
+            verticalId: verticalId,
+            name: item.name,
+            slug: item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.random().toString(36).substring(2, 7),
+            description: item.description || '',
+            basePrice: item.price,
+            isAvailable: true,
+            categoryId: item.categoryId || 'default-cat',
+          },
+        });
+      })
+    );
+    return created;
+  }
+
   async getVerticals() {
     const cached = await this.redis.get('catalog:verticals');
     if (cached) return JSON.parse(cached);

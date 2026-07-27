@@ -31,9 +31,9 @@ export class DeliveryController {
     return this.deliveryService.assignPartner(body.orderId, body.partnerId);
   }
 
-  @Post('auto-assign')
-  autoAssign(@Body() body: { orderId: string }) {
-    return this.deliveryService.autoAssignPartner(body.orderId);
+  @Post('accept-broadcast')
+  acceptBroadcast(@Body() body: { orderId: string; partnerId: string }) {
+    return this.deliveryService.acceptBroadcastedOrder(body.orderId, body.partnerId);
   }
 
   @Put('assignments/:id/status')

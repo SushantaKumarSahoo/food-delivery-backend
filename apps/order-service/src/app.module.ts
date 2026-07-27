@@ -4,9 +4,12 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '@quickbite/prisma';
 import { KafkaModule } from '@quickbite/common';
+import { NotificationModule, NotificationService } from '@quickbite/common';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
+import { DisputeService } from './dispute.service';
 import { JwtStrategy } from './jwt.strategy';
+import { OrderConsumer } from './order.consumer';
 
 @Module({
   imports: [
@@ -22,8 +25,9 @@ import { JwtStrategy } from './jwt.strategy';
       }),
     }),
     KafkaModule.register('order-service'),
+    NotificationModule,
   ],
-  controllers: [OrderController],
-  providers: [OrderService, JwtStrategy],
+  controllers: [OrderController, OrderConsumer],
+  providers: [OrderService, DisputeService, NotificationService, JwtStrategy],
 })
 export class AppModule {}

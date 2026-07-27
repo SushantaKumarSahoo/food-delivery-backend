@@ -39,6 +39,14 @@ export class NotificationConsumer {
     await this.notificationService.handleDeliveryAssigned(payload);
   }
 
+  @MessagePattern(KAFKA_TOPICS.DELIVERY_BROADCASTED)
+  async onDeliveryBroadcasted(@Payload() message: any) {
+    const payload = typeof message.value === 'string'
+      ? JSON.parse(message.value)
+      : message.value || message;
+    await this.notificationService.handleDeliveryBroadcasted(payload);
+  }
+
   @MessagePattern(KAFKA_TOPICS.DELIVERY_COMPLETED)
   async onDeliveryCompleted(@Payload() message: any) {
     const payload = typeof message.value === 'string'

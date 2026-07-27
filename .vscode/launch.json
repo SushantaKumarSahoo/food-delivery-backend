@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Customer App (quickbite_customer_app)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}/quickbite_customer_app",
+      "args": ["--no-enable-impeller"]
+    },
+    {
+      "name": "Partner App (quickbite_partner_app)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}/quickbite_partner_app",
+      "args": ["--no-enable-impeller"]
+    },
+    {
+      "name": "Restaurant App (quickbite_restaurant_app)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}/quickbite_restaurant_app",
+      "args": ["--no-enable-impeller"]
+    }
+  ]
+}

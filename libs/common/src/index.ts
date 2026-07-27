@@ -9,3 +9,5 @@ export * from './kafka/kafka.service';
 export * from './kafka/kafka.topics';
 export * from './redis/redis.module';
 export * from './redis/redis.service';
+export * from './notification/notification.module';
+export * from './notification/notification.service';

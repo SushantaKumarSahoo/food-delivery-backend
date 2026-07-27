@@ -1,28 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../application/auth_provider.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
-  bool _isLoading = false;
 
   void _onLogin() async {
-    if (_phoneController.text.length < 10) return;
-    setState(() => _isLoading = true);
+    final phone = _phoneController.text.trim();
+    if (phone.length < 10) return;
     
-    // Simulate network request
-    await Future.delayed(const Duration(seconds: 2));
+    final result = await ref.read(authControllerProvider.notifier).sendOtp('+91$phone');
     
     if (mounted) {
-      setState(() => _isLoading = false);
-      context.push('/otp', extra: _phoneController.text);
+      if (result) {
+        context.push('/otp', extra: '+91$phone');
+      } else {
+        final error = ref.read(authControllerProvider).errorMessage;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error ?? 'Failed to send OTP')),
+        );
+      }
     }
   }
 
@@ -117,17 +123,22 @@ class _LoginScreenState extends State<LoginScreen> {
               
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onLogin,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                  ),
-                  child: _isLoading 
-                      ? const SizedBox(
-                          height: 24, width: 24, 
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
-                        )
-                      : const Text('Continue'),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final isLoading = ref.watch(authControllerProvider).isLoading;
+                    return ElevatedButton(
+                      onPressed: isLoading ? null : _onLogin,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                      ),
+                      child: isLoading 
+                          ? const SizedBox(
+                              height: 24, width: 24, 
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
+                            )
+                          : const Text('Continue'),
+                    );
+                  }
                 ),
               ).animate(delay: 600.ms).scale(begin: const Offset(0.9, 0.9)).fadeIn(),
               

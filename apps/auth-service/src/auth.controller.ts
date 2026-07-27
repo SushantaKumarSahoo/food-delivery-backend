@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  BadRequestException,
   UseGuards,
   Get,
 } from '@nestjs/common';
@@ -26,11 +27,17 @@ class LoginDto {
 }
 
 class SendOtpDto {
-  phoneNumber: string;
+  phoneNumber?: string;
+  phone?: string;
+  email?: string;
+  recipient?: string;
 }
 
 class VerifyOtpDto {
-  phoneNumber: string;
+  phoneNumber?: string;
+  phone?: string;
+  email?: string;
+  recipient?: string;
   otp: string;
 }
 
@@ -60,13 +67,17 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('send-otp')
   sendOtp(@Body() dto: SendOtpDto) {
-    return this.authService.generateOtp(dto.phoneNumber);
+    const recipient = dto.recipient || dto.email || dto.phoneNumber || dto.phone;
+    if (!recipient) throw new BadRequestException('Recipient (phoneNumber, phone, or email) is required');
+    return this.authService.generateOtp(recipient);
   }
 
   @HttpCode(HttpStatus.OK)
   @Post('verify-otp')
   verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto.phoneNumber, dto.otp);
+    const recipient = dto.recipient || dto.email || dto.phoneNumber || dto.phone;
+    if (!recipient) throw new BadRequestException('Recipient (phoneNumber, phone, or email) is required');
+    return this.authService.verifyOtp(recipient, dto.otp);
   }
 
   @HttpCode(HttpStatus.OK)

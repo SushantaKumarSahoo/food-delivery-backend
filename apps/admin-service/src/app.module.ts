@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '@quickbite/prisma';
-import { AdminController } from './admin.controller';
+import { AdminController, OffersPublicController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { JwtStrategy } from './jwt.strategy';
 
@@ -21,7 +21,7 @@ import { JwtStrategy } from './jwt.strategy';
       }),
     }),
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, OffersPublicController],
   providers: [AdminService, JwtStrategy],
 })
 export class AppModule {}

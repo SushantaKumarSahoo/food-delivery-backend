@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { SearchService } from './search.service';
 import { JwtAuthGuard } from '@quickbite/common';
 
@@ -40,5 +40,10 @@ export class SearchController {
   @Get('suggestions')
   getSuggestions(@Query('q') q: string) {
     return this.searchService.getSuggestions(q);
+  }
+
+  @Post('ai')
+  aiSearch(@Body() body: { q: string; limit?: number }) {
+    return this.searchService.aiSearch(body.q, body.limit);
   }
 }

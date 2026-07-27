@@ -23,6 +23,11 @@ export class UserController {
     return this.userService.getProfile(user.userId);
   }
 
+  @Get('me')
+  getMe(@CurrentUser() user: any) {
+    return this.userService.getProfile(user.userId);
+  }
+
   @Put('profile')
   updateProfile(@CurrentUser() user: any, @Body() body: any) {
     return this.userService.updateProfile(user.userId, body);
@@ -66,5 +71,30 @@ export class UserController {
   @Delete('account')
   deleteAccount(@CurrentUser() user: any) {
     return this.userService.deleteAccount(user.userId);
+  }
+
+  @Put('device-token')
+  saveDeviceToken(
+    @CurrentUser() user: any,
+    @Body() body: { fcmToken: string },
+  ) {
+    return this.userService.saveDeviceToken(user.userId, body.fcmToken);
+  }
+
+  @Get('wallet')
+  getWallet(@CurrentUser() user: any) {
+    return this.userService.getWallet(user.userId);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('wallet/redeem')
+  redeemCoins(@CurrentUser() user: any, @Body() body: { coins: number }) {
+    return this.userService.redeemCoins(user.userId, body.coins || 50);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('wallet/add')
+  addCoins(@CurrentUser() user: any, @Body() body: { coins: number }) {
+    return this.userService.addCoins(user.userId, body.coins || 10);
   }
 }

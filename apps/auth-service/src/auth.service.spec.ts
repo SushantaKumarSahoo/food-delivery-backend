@@ -1,10 +1,16 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '@quickbite/prisma';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn(() => ({
+    sendMail: jest.fn().mockResolvedValue({ messageId: 'test_id' }),
+  })),
+}));
 
 const mockPrisma = {
   user: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -14,10 +20,24 @@ const mockPrisma = {
 };
 
 const mockJwt = { sign: jest.fn().mockReturnValue('mock_token'), verify: jest.fn() };
-const mockConfig = { get: jest.fn((key: string) => {
-  const map: any = { NODE_ENV: 'development', JWT_SECRET: 'secret', JWT_REFRESH_SECRET: 'refresh', JWT_EXPIRES_IN: '60m', JWT_REFRESH_EXPIRES_IN: '7d' };
-  return map[key];
-}) };
+const mockConfig = {
+  get: jest.fn((key: string) => {
+    const map: any = {
+      NODE_ENV: 'development',
+      OTP_MODE: 'email',
+      JWT_SECRET: 'secret',
+      JWT_REFRESH_SECRET: 'refresh',
+      JWT_EXPIRES_IN: '60m',
+      JWT_REFRESH_EXPIRES_IN: '7d',
+      SMTP_HOST: 'smtp.test.com',
+      SMTP_PORT: 587,
+      SMTP_USER: 'user',
+      SMTP_PASS: 'pass',
+      SMTP_FROM: 'test@quickbite.in',
+    };
+    return map[key];
+  }),
+};
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -73,10 +93,10 @@ describe('AuthService', () => {
   });
 
   describe('generateOtp', () => {
-    it('upserts OTP record and returns message', async () => {
+    it('upserts OTP record and returns message for email mode', async () => {
       (mockPrisma as any).otpVerification.upsert = jest.fn().mockResolvedValue({});
-      const result = await service.generateOtp('+91999');
-      expect(result.message).toContain('OTP');
+      const result = await service.generateOtp('user@example.com');
+      expect(result.message).toContain('OTP sent via email');
       expect((mockPrisma as any).otpVerification.upsert).toHaveBeenCalled();
     });
   });

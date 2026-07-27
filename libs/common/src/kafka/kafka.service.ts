@@ -11,11 +11,20 @@ export class KafkaService {
   ) {}
 
   async onModuleInit() {
-    // Subscribe to all topics as a consumer
-    Object.values(KAFKA_TOPICS).forEach((topic) => {
-      this.kafkaClient.subscribeToResponseOf(topic);
-    });
-    await this.kafkaClient.connect();
+    try {
+      // Subscribe to all topics as a consumer (best-effort — topics may not exist yet)
+      Object.values(KAFKA_TOPICS).forEach((topic) => {
+        try {
+          this.kafkaClient.subscribeToResponseOf(topic);
+        } catch {
+          // ignore individual topic errors
+        }
+      });
+      await this.kafkaClient.connect();
+      this.logger.log('Kafka connected successfully');
+    } catch (error) {
+      this.logger.warn(`Kafka not available — events will be skipped. Error: ${error?.message}`);
+    }
   }
 
   async onModuleDestroy() {
@@ -30,7 +39,7 @@ export class KafkaService {
       });
       this.logger.log(`Emitted event to topic: ${topic}`);
     } catch (error) {
-      this.logger.error(`Failed to emit to topic ${topic}:`, error);
+      this.logger.warn(`Kafka emit skipped (broker unavailable) for topic ${topic}: ${error?.message}`);
     }
   }
 }

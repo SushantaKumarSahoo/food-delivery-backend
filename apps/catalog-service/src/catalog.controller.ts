@@ -11,11 +11,15 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
+import { AiService } from './ai.service';
 import { JwtAuthGuard } from '@quickbite/common';
 
 @Controller('catalog')
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+  constructor(
+    private readonly catalogService: CatalogService,
+    private readonly aiService: AiService,
+  ) {}
 
   // ─── Verticals ─────────────────────────────────────────────────────────────
 
@@ -43,12 +47,38 @@ export class CatalogController {
     return this.catalogService.getCategoriesByVertical(verticalId);
   }
 
+  // ─── AI Integration ────────────────────────────────────────────────────────
+
+  @Post('ai-import')
+  @UseGuards(JwtAuthGuard)
+  async importMenuViaAI(@Body() body: { imageBase64: string }) {
+    const items = await this.aiService.parseMenuImage(body.imageBase64);
+    return items;
+  }
+
+  @Post('ai-order')
+  @UseGuards(JwtAuthGuard)
+  async aiOrder(@Body() body: { prompt: string; storeId: string }) {
+    const products = await this.catalogService.getProductsByStore(body.storeId);
+    const cartItems = await this.aiService.parseOrderRequest(body.prompt, products);
+    return cartItems;
+  }
+
   // ─── Products ──────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard)
   @Post('products')
   createProduct(@Body() body: any) {
     return this.catalogService.createProduct(body);
+  }
+
+  @Post('stores/:storeId/products/batch')
+  @UseGuards(JwtAuthGuard)
+  async batchCreateProducts(
+    @Param('storeId') storeId: string,
+    @Body() body: { items: any[] },
+  ) {
+    return this.catalogService.batchCreateProducts(storeId, body.items);
   }
 
   @Get('stores/:storeId/products')

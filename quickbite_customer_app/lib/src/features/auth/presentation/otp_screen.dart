@@ -1,34 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../application/auth_provider.dart';
 
-class OtpScreen extends StatefulWidget {
+class OtpScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
   
   const OtpScreen({super.key, required this.phoneNumber});
 
   @override
-  State<OtpScreen> createState() => _OtpScreenState();
+  ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends State<OtpScreen> {
+class _OtpScreenState extends ConsumerState<OtpScreen> {
   final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
-  bool _isLoading = false;
 
   void _verifyOtp() async {
     final otp = _controllers.map((c) => c.text).join();
     if (otp.length < 6) return;
     
-    setState(() => _isLoading = true);
-    
-    // Simulate network request
-    await Future.delayed(const Duration(seconds: 2));
+    // Call backend
+    final result = await ref.read(authControllerProvider.notifier).verifyOtp(widget.phoneNumber, otp);
     
     if (mounted) {
-      setState(() => _isLoading = false);
-      // Navigate to Home upon success
-      context.go('/home');
+      if (result.accessToken != null) {
+        if (result.isNewUser) {
+          context.go('/complete-profile');
+        } else {
+          context.go('/home');
+        }
+      } else {
+        final error = ref.read(authControllerProvider).errorMessage;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error ?? 'Invalid OTP')),
+        );
+      }
     }
   }
 
@@ -63,7 +71,7 @@ class _OtpScreenState extends State<OtpScreen> {
               
               const SizedBox(height: 12),
               Text(
-                'We sent a 6-digit code to +91 ${widget.phoneNumber}',
+                'We sent a 6-digit code to ${widget.phoneNumber}',
                 style: theme.textTheme.bodyMedium?.copyWith(fontSize: 16),
               ).animate(delay: 200.ms).slideX(begin: -0.2, end: 0).fadeIn(),
               
@@ -113,17 +121,22 @@ class _OtpScreenState extends State<OtpScreen> {
               
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _verifyOtp,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                  ),
-                  child: _isLoading 
-                      ? const SizedBox(
-                          height: 24, width: 24, 
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
-                        )
-                      : const Text('Verify'),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final isLoading = ref.watch(authControllerProvider).isLoading;
+                    return ElevatedButton(
+                      onPressed: isLoading ? null : _verifyOtp,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                      ),
+                      child: isLoading 
+                          ? const SizedBox(
+                              height: 24, width: 24, 
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
+                            )
+                          : const Text('Verify'),
+                    );
+                  }
                 ),
               ).animate(delay: 700.ms).scale(begin: const Offset(0.9, 0.9)).fadeIn(),
             ],

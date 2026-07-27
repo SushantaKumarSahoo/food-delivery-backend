@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@quickbite/prisma';
-import { KafkaService, KAFKA_TOPICS } from '@quickbite/common';
+import { KafkaService, KAFKA_TOPICS, NotificationService } from '@quickbite/common';
 
 @Injectable()
 export class OrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kafkaService: KafkaService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createOrder(userId: string, data: any) {
@@ -41,7 +42,8 @@ export class OrderService {
        deliveryFee = 40; // Simulate dynamic surge pricing
     }
 
-    const platformFee = subtotal > 0 ? 5 : 0;
+    const tenantConfig = (tenant?.config as any) || {};
+    const platformFee = subtotal > 0 ? (tenantConfig.platformFee ?? 0) : 0;
     const taxableAmount = Math.max(0, subtotal - couponDiscount);
     const taxes = Math.round(taxableAmount * 0.05); // 5% GST
 
@@ -62,8 +64,31 @@ export class OrderService {
         paymentStatus: 'pending',
         deliveryAddressId: data.deliveryAddressId,
         specialInstructions: data.specialInstructions,
+        metadata: {
+          platformFeeApplied: platformFee,
+          isSponsoredOrder: false, // We will update this below if the merchant is sponsored
+          adFeeDeducted: 0
+        },
       },
     });
+
+    // Check if the merchant is sponsored to deduct ad cost per order
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: data.merchantId } });
+    if (merchant) {
+      const metadata = (merchant.metadata as any) || {};
+      if (metadata.isSponsored && metadata.adCpoAmount > 0) {
+        await this.prisma.order.updateMany({
+          where: { id: order.id },
+          data: {
+            metadata: {
+              platformFeeApplied: platformFee,
+              isSponsoredOrder: true,
+              adFeeDeducted: Number(metadata.adCpoAmount)
+            }
+          }
+        });
+      }
+    }
 
     const createdItems = await Promise.all(
       items.map(item => this.prisma.orderItem.create({
@@ -93,12 +118,20 @@ export class OrderService {
   }
 
   async getOrder(orderId: string) {
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId },
-    });
-    if (!order) throw new NotFoundException('Order not found');
-    const items = await this.prisma.orderItem.findMany({ where: { orderId } });
-    return { ...order, items };
+    if (!orderId || typeof orderId !== 'string' || orderId.trim().length < 10) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+    try {
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId },
+      });
+      if (!order) throw new NotFoundException(`Order ${orderId} not found`);
+      const items = await this.prisma.orderItem.findMany({ where: { orderId } });
+      return { ...order, items };
+    } catch (e) {
+      if (e instanceof NotFoundException) throw e;
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
   }
 
   async getUserOrders(userId: string) {
@@ -112,24 +145,93 @@ export class OrderService {
     }));
   }
 
+  async getMerchantOrders(merchantId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: { merchantId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return Promise.all(orders.map(async (o) => {
+      const items = await this.prisma.orderItem.findMany({ where: { orderId: o.id } });
+      const customer = await this.prisma.customerProfile.findFirst({ where: { userId: o.userId } });
+      return { 
+        ...o, 
+        items,
+        customerTrustScore: customer?.trustScore ?? 100.0
+      };
+    }));
+  }
+
+  async acceptOrder(orderId: string, estimatedPrepTime: number) {
+    const order = await this.getOrder(orderId);
+    
+    // Status can be updated from pending or payment_pending to confirmed (accepted by restaurant)
+    await this.prisma.order.updateMany({
+      where: { id: orderId },
+      data: { 
+        status: 'confirmed',
+        estimatedPrepTime,
+      },
+    });
+
+    // Notify delivery service to start finding a driver (Middle Ground flow)
+    await this.kafkaService.emit(KAFKA_TOPICS.ORDER_ACCEPTED, {
+      orderId,
+      storeId: order.storeId,
+      merchantId: order.merchantId,
+      estimatedPrepTime,
+    });
+
+    return { success: true, message: 'Order accepted, waiting for driver' };
+  }
+
+  async updateToPreparing(orderId: string) {
+    await this.prisma.order.updateMany({
+      where: { id: orderId },
+      data: { status: 'preparing' },
+    });
+    return { success: true, message: 'Order is now preparing' };
+  }
+
   async updateOrderStatus(orderId: string, status: string) {
-    await this.getOrder(orderId);
-    const updated = await this.prisma.order.updateMany({
+    const order = await this.getOrder(orderId);
+    await this.prisma.order.updateMany({
       where: { id: orderId },
       data: { status },
     });
 
-    // Emit completed event
-    if (status === 'delivered') {
-      const order = await this.prisma.order.findFirst({ where: { id: orderId } });
-      await this.kafkaService.emit(KAFKA_TOPICS.ORDER_COMPLETED, {
-        orderId,
-        userId: order?.userId,
-        totalAmount: order?.totalAmount,
-      });
+    // Push notification to customer
+    try {
+      const user = await this.prisma.user.findUnique({ where: { id: order.userId } });
+      const fcmToken = (user as any)?.fcmToken;
+      if (fcmToken) {
+        const msg = this.notificationService.getOrderStatusMessage(status, order.orderNumber);
+        await this.notificationService.sendToToken(fcmToken, msg.title, msg.body, { orderId });
+      }
+    } catch (err) {
+      // non-fatal
     }
 
-    return updated;
+    // Award QuickCoins on delivery (1 coin per ₹10)
+    if (status === 'delivered') {
+      const freshOrder = await this.prisma.order.findFirst({ where: { id: orderId } });
+      if (freshOrder) {
+        await this.kafkaService.emit(KAFKA_TOPICS.ORDER_COMPLETED, {
+          orderId,
+          userId: freshOrder.userId,
+          totalAmount: freshOrder.totalAmount,
+        });
+        // Award QuickCoins
+        const coins = Math.floor(Number(freshOrder.totalAmount) / 10);
+        if (coins > 0) {
+          await (this.prisma as any).wallet.updateMany({
+            where: { userId: freshOrder.userId },
+            data: { coins: { increment: coins } },
+          }).catch(() => {/* wallet may not have coins field yet */});
+        }
+      }
+    }
+
+    return { success: true };
   }
 
   async cancelOrder(orderId: string, reason?: string) {
@@ -153,10 +255,14 @@ export class OrderService {
   }
 
   async getOrderEvents(orderId: string) {
-    await this.getOrder(orderId);
-    return this.prisma.orderEvent.findMany({
-      where: { orderId },
-      orderBy: { createdAt: 'asc' },
-    });
+    try {
+      await this.getOrder(orderId);
+      return await this.prisma.orderEvent.findMany({
+        where: { orderId },
+        orderBy: { createdAt: 'asc' },
+      });
+    } catch (e) {
+      return [];
+    }
   }
 }

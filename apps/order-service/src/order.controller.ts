@@ -10,12 +10,16 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { OrderService } from './order.service';
+import { DisputeService } from './dispute.service';
 import { CurrentUser, JwtAuthGuard } from '@quickbite/common';
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly disputeService: DisputeService,
+  ) {}
 
   @Post()
   createOrder(@CurrentUser() user: any, @Body() body: any) {
@@ -25,6 +29,11 @@ export class OrderController {
   @Get()
   getMyOrders(@CurrentUser() user: any) {
     return this.orderService.getUserOrders(user.userId);
+  }
+
+  @Get('merchant/:merchantId')
+  getMerchantOrders(@Param('merchantId') merchantId: string) {
+    return this.orderService.getMerchantOrders(merchantId);
   }
 
   @Get(':id')
@@ -37,6 +46,11 @@ export class OrderController {
     return this.orderService.updateOrderStatus(id, body.status);
   }
 
+  @Post(':id/accept')
+  acceptOrder(@Param('id') id: string, @Body() body: { estimatedPrepTime: number }) {
+    return this.orderService.acceptOrder(id, body.estimatedPrepTime);
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post(':id/cancel')
   cancelOrder(@Param('id') id: string, @Body() body: { reason?: string }) {
@@ -46,5 +60,19 @@ export class OrderController {
   @Get(':id/events')
   getOrderEvents(@Param('id') id: string) {
     return this.orderService.getOrderEvents(id);
+  }
+
+  @Post(':id/dispute')
+  submitDispute(
+    @CurrentUser() user: any,
+    @Param('id') orderId: string,
+    @Body() body: { issueType: string; description: string },
+  ) {
+    return this.disputeService.submitDispute(
+      user.userId,
+      orderId,
+      body.issueType,
+      body.description,
+    );
   }
 }

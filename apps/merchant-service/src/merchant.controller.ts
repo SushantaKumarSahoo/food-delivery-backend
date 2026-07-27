@@ -25,6 +25,12 @@ export class MerchantController {
     );
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getMyMerchant(@CurrentUser() user: any) {
+    return this.merchantService.getMerchantByOwner(user.userId);
+  }
+
   @Get()
   listMerchants(@Query('status') status?: string) {
     return this.merchantService.listMerchants(status);
@@ -45,6 +51,15 @@ export class MerchantController {
   @Put(':id/approve')
   approveMerchant(@Param('id') id: string) {
     return this.merchantService.approveMerchant(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put(':id/sponsorship')
+  updateSponsorship(
+    @Param('id') id: string, 
+    @Body() body: { isSponsored: boolean; adCpoAmount: number }
+  ) {
+    return this.merchantService.updateMerchantSponsorship(id, body.isSponsored, body.adCpoAmount);
   }
 
   @UseGuards(JwtAuthGuard)

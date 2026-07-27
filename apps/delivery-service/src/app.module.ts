@@ -4,9 +4,13 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '@quickbite/prisma';
 import { KafkaModule } from '@quickbite/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DeliveryController } from './delivery.controller';
 import { DeliveryService } from './delivery.service';
 import { JwtStrategy } from './jwt.strategy';
+import { DeliveryConsumer } from './delivery.consumer';
+import { DeliveryCronService } from './delivery.cron';
+import { DeliveryGateway } from './delivery.gateway';
 
 @Module({
   imports: [
@@ -22,8 +26,9 @@ import { JwtStrategy } from './jwt.strategy';
       }),
     }),
     KafkaModule.register('delivery-service'),
+    ScheduleModule.forRoot(),
   ],
-  controllers: [DeliveryController],
-  providers: [DeliveryService, JwtStrategy],
+  controllers: [DeliveryController, DeliveryConsumer],
+  providers: [DeliveryService, JwtStrategy, DeliveryCronService, DeliveryGateway],
 })
 export class AppModule {}

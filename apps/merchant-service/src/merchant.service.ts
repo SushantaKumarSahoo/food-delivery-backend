@@ -7,7 +7,7 @@ export class MerchantService {
 
   async onboardMerchant(tenantId: string, ownerUserId: string, data: any) {
     const { businessName, businessType, cuisineTypes, description } = data;
-    return this.prisma.merchant.create({
+    const merchant = await this.prisma.merchant.create({
       data: {
         tenantId,
         ownerUserId,
@@ -21,6 +21,24 @@ export class MerchantService {
         metadata: { description },
       },
     });
+
+    // Auto-create a default store
+    await (this.prisma as any).store.create({
+      data: {
+        merchantId: merchant.id,
+        tenantId,
+        name: merchant.brandName,
+        address: 'Default Address',
+        city: 'Default City',
+        state: 'Default State',
+        country: 'IN',
+        pincode: '000000',
+        status: 'active',
+        verticalId: 'default-vertical', // fallback
+      },
+    });
+
+    return merchant;
   }
 
   async listMerchants(status?: string) {
@@ -32,12 +50,35 @@ export class MerchantService {
   }
 
   async getMerchant(merchantId: string) {
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      include: { stores: true, bankAccounts: true },
-    });
-    if (!merchant) throw new NotFoundException(`Merchant ${merchantId} not found`);
-    return merchant;
+    if (!merchantId || merchantId.trim() === '' || merchantId.length < 10) {
+      throw new NotFoundException(`Merchant ${merchantId} not found`);
+    }
+    try {
+      const merchant = await this.prisma.merchant.findUnique({
+        where: { id: merchantId },
+        include: { stores: true, bankAccounts: true },
+      });
+      if (!merchant) throw new NotFoundException(`Merchant ${merchantId} not found`);
+      return merchant;
+    } catch (e) {
+      if (e instanceof NotFoundException) throw e;
+      throw new NotFoundException(`Merchant ${merchantId} not found`);
+    }
+  }
+
+  async getMerchantByOwner(userId: string) {
+    if (!userId || userId.trim() === '' || userId.length < 10) {
+      return null;
+    }
+    try {
+      const merchant = await this.prisma.merchant.findFirst({
+        where: { ownerUserId: userId },
+        include: { stores: true },
+      });
+      return merchant;
+    } catch (e) {
+      return null;
+    }
   }
 
   async updateMerchant(merchantId: string, data: any) {
@@ -54,6 +95,22 @@ export class MerchantService {
     return this.prisma.merchant.update({
       where: { id: merchantId },
       data: { status: 'approved' },
+    });
+  }
+
+  async updateMerchantSponsorship(merchantId: string, isSponsored: boolean, adCpoAmount: number) {
+    const merchant = await this.getMerchant(merchantId);
+    const metadata = (merchant.metadata as any) || {};
+    
+    return this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { 
+        metadata: {
+          ...metadata,
+          isSponsored,
+          adCpoAmount,
+        }
+      },
     });
   }
 
@@ -80,7 +137,14 @@ export class MerchantService {
   }
 
   async getStoresByMerchant(merchantId: string) {
-    return this.prisma.store.findMany({ where: { merchantId } });
+    if (!merchantId || merchantId.trim() === '' || merchantId.length < 10) {
+      return [];
+    }
+    try {
+      return await this.prisma.store.findMany({ where: { merchantId } });
+    } catch (e) {
+      return [];
+    }
   }
 
   async updateStore(merchantId: string, storeId: string, data: any) {

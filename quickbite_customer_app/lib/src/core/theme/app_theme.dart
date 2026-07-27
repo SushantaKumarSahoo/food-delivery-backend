@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color primaryColor = Color(0xFFFF4B3A); // Vibrant Food Orange/Red
-  static const Color secondaryColor = Color(0xFFFA4A0C);
-  static const Color backgroundColor = Color(0xFFF2F2F2);
-  static const Color darkBackgroundColor = Color(0xFF1E1E1E);
-  static const Color textDark = Color(0xFF333333);
-  static const Color textLight = Color(0xFFF5F5F8);
+  static const Color primaryColor = Color(0xFF10B981); // Emerald Green
+  static const Color secondaryColor = Color(0xFF006C49);
+  static const Color backgroundColor = Color(0xFFF4FBF4);
+  static const Color darkBackgroundColor = Color(0xFF161D19);
+  static const Color textDark = Color(0xFF161D19);
+  static const Color textLight = Color(0xFFFFFFFF);
+  static const Color cardLight = Color(0xFFFFFFFF);
+  static const Color cardDark = Color(0xFF2B322D);
 
   static ThemeData get lightTheme {
     return ThemeData(
@@ -17,14 +19,14 @@ class AppTheme {
         primary: primaryColor,
         secondary: secondaryColor,
         background: backgroundColor,
-        surface: Colors.white,
+        surface: cardLight,
       ),
       scaffoldBackgroundColor: backgroundColor,
-      textTheme: GoogleFonts.outfitTextTheme().copyWith(
-        displayLarge: GoogleFonts.outfit(color: textDark, fontWeight: FontWeight.bold),
-        titleLarge: GoogleFonts.outfit(color: textDark, fontWeight: FontWeight.w600),
-        bodyLarge: GoogleFonts.outfit(color: textDark),
-        bodyMedium: GoogleFonts.outfit(color: textDark.withOpacity(0.8)),
+      textTheme: GoogleFonts.interTextTheme().copyWith(
+        displayLarge: GoogleFonts.sora(color: textDark, fontWeight: FontWeight.bold),
+        titleLarge: GoogleFonts.sora(color: textDark, fontWeight: FontWeight.w600),
+        bodyLarge: GoogleFonts.inter(color: textDark),
+        bodyMedium: GoogleFonts.inter(color: textDark.withValues(alpha: 0.8)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -38,9 +40,15 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          textStyle: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
         ),
+      ),
+      cardTheme: CardThemeData(
+        color: cardLight,
+        elevation: 4,
+        shadowColor: Colors.black.withValues(alpha: 0.04),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
     );
   }
@@ -55,14 +63,14 @@ class AppTheme {
         primary: primaryColor,
         secondary: secondaryColor,
         background: darkBackgroundColor,
-        surface: const Color(0xFF2C2C2C),
+        surface: cardDark,
       ),
       scaffoldBackgroundColor: darkBackgroundColor,
-      textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme).copyWith(
-        displayLarge: GoogleFonts.outfit(color: textLight, fontWeight: FontWeight.bold),
-        titleLarge: GoogleFonts.outfit(color: textLight, fontWeight: FontWeight.w600),
-        bodyLarge: GoogleFonts.outfit(color: textLight),
-        bodyMedium: GoogleFonts.outfit(color: textLight.withOpacity(0.8)),
+      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).copyWith(
+        displayLarge: GoogleFonts.sora(color: textLight, fontWeight: FontWeight.bold),
+        titleLarge: GoogleFonts.sora(color: textLight, fontWeight: FontWeight.w600),
+        bodyLarge: GoogleFonts.inter(color: textLight),
+        bodyMedium: GoogleFonts.inter(color: textLight.withValues(alpha: 0.8)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -76,9 +84,15 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          textStyle: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
         ),
+      ),
+      cardTheme: CardThemeData(
+        color: cardDark,
+        elevation: 10,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
     );
   }

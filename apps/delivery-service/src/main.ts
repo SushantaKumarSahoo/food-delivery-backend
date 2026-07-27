@@ -1,27 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
   const logger = new Logger('Delivery Service');
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({ logger: false }),
-  );
+  // Uses default Express adapter — required for Socket.io WebSocket gateway
+  const app = await NestFactory.create(AppModule);
 
-  app.enableCors();
+  app.enableCors({ origin: '*' });
 
-  // Health check endpoint
-  app.use('/health', (_req: any, res: any) => {
-    res.json({ status: 'ok', service: 'delivery-service', ts: new Date().toISOString() });
-  });
-
-  // Swagger / OpenAPI docs
   const config = new DocumentBuilder()
     .setTitle('QuickBite Delivery Service')
-    .setDescription('Delivery partners and assignment API')
+    .setDescription('Delivery partners, assignment, and real-time tracking API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -30,6 +21,6 @@ async function bootstrap() {
 
   const port = parseInt(process.env.PORT_DELIVERY_SERVICE || '3008', 10);
   await app.listen(port, '0.0.0.0');
-  logger.log(`Service running on port ${port}`);
+  logger.log(`Service running on port ${port} (WebSocket: /delivery)`);
 }
 bootstrap();
