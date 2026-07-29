@@ -47,18 +47,7 @@ class SearchRepository {
   }
 
   Future<List<Map<String, dynamic>>> getTrendingCuisines() async {
-    try {
-      final response = await _dio.get('${ApiConfig.catalog}/verticals');
-      if (response.statusCode == 200 && response.data is List) {
-        final List<dynamic> data = response.data;
-        return data.take(6).map((v) => {
-          'name': v['name'] ?? '',
-          'icon': v['icon'] ?? v['emoji'] ?? '🍽️',
-          'id': v['id'] ?? '',
-        }).toList();
-      }
-    } catch (_) {}
-    // Fallback static list if backend unavailable
+    // Return a curated list of actual food cuisines rather than top-level verticals like Pharmacy/Grocery
     return [
       {'name': 'Fast Food', 'icon': '🍔', 'id': ''},
       {'name': 'Italian', 'icon': '🍕', 'id': ''},

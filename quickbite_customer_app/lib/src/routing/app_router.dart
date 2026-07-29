@@ -7,16 +7,58 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/otp_screen.dart';
 import '../features/auth/presentation/complete_profile_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/home/presentation/category_restaurants_screen.dart';
 import '../features/restaurant/presentation/restaurant_detail_screen.dart';
 import '../features/tracking/presentation/tracking_screen.dart';
 import '../features/payment/presentation/payment_screen.dart';
 
 import '../features/home/presentation/search_feed.dart';
+import '../features/onboarding/presentation/onboarding_screen.dart';
+import '../features/permissions/presentation/location_permission_screen.dart';
+import '../features/permissions/presentation/notification_permission_screen.dart';
+import '../features/payment/presentation/order_success_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
     routes: [
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/location-permission',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const LocationPermissionScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/notification-permission',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const NotificationPermissionScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/order-success/:orderId',
+        pageBuilder: (context, state) {
+          final orderId = state.pathParameters['orderId']!;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: OrderSuccessScreen(orderId: orderId),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          );
+        },
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const SplashScreen(),
@@ -65,6 +107,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/search',
         builder: (context, state) => const SearchFeed(),
+      ),
+      GoRoute(
+        path: '/category/:name',
+        pageBuilder: (context, state) {
+          final name = Uri.decodeComponent(state.pathParameters['name']!);
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: CategoryRestaurantsScreen(categoryName: name),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1, 0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                child: child,
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/restaurant/:id',

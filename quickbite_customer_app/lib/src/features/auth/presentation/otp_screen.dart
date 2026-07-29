@@ -29,7 +29,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         if (result.isNewUser) {
           context.go('/complete-profile');
         } else {
-          context.go('/home');
+          context.go('/location-permission');
         }
       } else {
         final error = ref.read(authControllerProvider).errorMessage;

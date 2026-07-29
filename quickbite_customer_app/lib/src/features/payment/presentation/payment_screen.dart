@@ -106,7 +106,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               onPressed: () {
                 Navigator.pop(ctx);
                 if (success) {
-                  context.go('/home');
+                  context.go('/order-success/${widget.orderId}');
                 }
               },
               child: Text(success ? 'Go to Home' : 'Try Again'),

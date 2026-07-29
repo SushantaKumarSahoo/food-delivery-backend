@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -18,11 +19,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _navigateToNext() async {
-    // Simulate initial loading or token check
+    // Simulate initial loading
     await Future.delayed(const Duration(seconds: 3));
+    
     if (mounted) {
-      // Navigate to login screen
-      context.go('/login');
+      final prefs = await SharedPreferences.getInstance();
+      final hasCompletedOnboarding = prefs.getBool('hasCompletedOnboarding') ?? false;
+
+      if (hasCompletedOnboarding) {
+        context.go('/login');
+      } else {
+        context.go('/onboarding');
+      }
     }
   }
 

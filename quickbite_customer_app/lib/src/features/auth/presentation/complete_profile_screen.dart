@@ -40,7 +40,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       });
 
       if (mounted) {
-        context.go('/home');
+        context.go('/location-permission');
       }
     } catch (e) {
       if (mounted) {

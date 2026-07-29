@@ -305,11 +305,12 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
           bannersAsyncValue.when(
             data: (apiBanners) {
               // Fallback to dummy data if DB is empty
-              final banners = apiBanners.isEmpty ? [
+              final allBanners = apiBanners.isEmpty ? [
                 {
                   'title': 'Get 50% Off',
                   'subtitle': 'On your first order',
                   'imageUrl': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop',
+                  'firstOrderOnly': true,
                 },
                 {
                   'title': 'Free Delivery',
@@ -317,6 +318,19 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
                   'imageUrl': 'https://images.unsplash.com/photo-1493770348161-369560ae357d?q=80&w=1000&auto=format&fit=crop',
                 }
               ] : apiBanners;
+
+              // Filter out first-order banners for returning customers
+              final userOrders = ref.watch(userOrdersProvider).value ?? [];
+              final hasCompletedOrders = userOrders.any(
+                (o) => o['status'] == 'delivered' || o['status'] == 'completed',
+              );
+              final banners = hasCompletedOrders
+                  ? allBanners.where((b) {
+                      final isFirstOrder = b['firstOrderOnly'] == true ||
+                          (b['subtitle']?.toString().toLowerCase().contains('first order') ?? false);
+                      return !isFirstOrder;
+                    }).toList()
+                  : allBanners;
 
               return SliverToBoxAdapter(
                 child: SizedBox(
@@ -412,44 +426,52 @@ class _HomeFeedState extends ConsumerState<HomeFeed> {
                     itemCount: categories.length,
                     itemBuilder: (context, index) {
                       final category = categories[index];
-                      return Container(
-                        margin: const EdgeInsets.only(right: 20),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 70,
-                              height: 70,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: theme.colorScheme.surface,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                                image: category['imageUrl'] != null
-                                    ? DecorationImage(
-                                        image: NetworkImage(category['imageUrl']),
-                                        fit: BoxFit.cover,
-                                      )
+                      final categoryName = category['name'] ?? '';
+                      return GestureDetector(
+                        onTap: () {
+                          if (categoryName.isNotEmpty) {
+                            context.push('/category/${Uri.encodeComponent(categoryName)}');
+                          }
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: theme.colorScheme.surface,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                  image: category['imageUrl'] != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(category['imageUrl']),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: category['imageUrl'] == null
+                                    ? Icon(LucideIcons.image, color: Colors.grey.shade400)
                                     : null,
                               ),
-                              child: category['imageUrl'] == null
-                                  ? Icon(LucideIcons.image, color: Colors.grey.shade400)
-                                  : null,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              category['name'] ?? '',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                              const SizedBox(height: 8),
+                              Text(
+                                categoryName,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ).animate().fadeIn(delay: Duration(milliseconds: index * 100)).scale();
                     },

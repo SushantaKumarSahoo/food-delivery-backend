@@ -143,6 +143,32 @@ export class CatalogService {
     return updated;
   }
 
+  // ─── Stores by Category ─────────────────────────────────────────────────
+
+  async getStoresByCategory(categoryId: string) {
+    const cacheKey = `catalog:stores:category:${categoryId}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    // Find distinct store IDs that have products in this category
+    const products = await this.prisma.product.findMany({
+      where: { categoryId, isAvailable: true, deletedAt: null },
+      select: { storeId: true },
+      distinct: ['storeId'],
+    });
+
+    const storeIds = products.map((p) => p.storeId);
+    if (storeIds.length === 0) return [];
+
+    const stores = await this.prisma.store.findMany({
+      where: { id: { in: storeIds }, deletedAt: null },
+      include: { merchant: true },
+    });
+
+    await this.redis.set(cacheKey, JSON.stringify(stores), 'EX', 300);
+    return stores;
+  }
+
   // ─── AddOn Groups ───────────────────────────────────────────────────────
 
   async getModifierGroups(productId: string) {

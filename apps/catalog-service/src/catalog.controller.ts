@@ -47,6 +47,11 @@ export class CatalogController {
     return this.catalogService.getCategoriesByVertical(verticalId);
   }
 
+  @Get('categories/:categoryId/stores')
+  getStoresByCategory(@Param('categoryId') categoryId: string) {
+    return this.catalogService.getStoresByCategory(categoryId);
+  }
+
   // ─── AI Integration ────────────────────────────────────────────────────────
 
   @Post('ai-import')
